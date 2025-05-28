@@ -75,15 +75,15 @@ impl Diff {
     }
 
     pub(crate) fn first_diff_line(&self, file_i: usize, hunk_i: usize) -> usize {
-        if let Some(change) = self.file_diffs[file_i].hunks[hunk_i]
-            .content
-            .changes
-            .first()
-        {
-            self.text[..change.old.start].lines().count()
-        } else {
-            0
-        }
+        let hunk = &self.file_diffs[file_i].hunks[hunk_i];
+        let mut line = hunk.header.new_line_start as usize;
+
+        if let Some(change) = hunk.content.changes.first() {
+            let hunk_start = hunk.content.range.start;
+            let change_start = hunk_start + change.old.start.min(change.new.start);
+            line += &self.text[hunk_start..change_start].lines().count();
+        };
+        line
     }
 }
 

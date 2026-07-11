@@ -9,6 +9,7 @@ use crate::{
 };
 use std::{fmt::Display, rc::Rc};
 
+pub(crate) mod apply;
 pub(crate) mod branch;
 pub(crate) mod commit;
 pub(crate) mod copy_hash;
@@ -100,6 +101,7 @@ pub(crate) enum Op {
     Unstage,
     Show,
     Discard,
+    Apply,
     CopyHash,
 
     ToggleSection,
@@ -125,6 +127,28 @@ pub(crate) enum Op {
 }
 
 impl Op {
+    pub(crate) fn action_for(&self, target: &ItemData) -> Option<Action> {
+        self.is_available_for(target)
+            .then(|| self.clone().implementation().get_action(target))
+            .flatten()
+    }
+
+    fn is_available_for(&self, target: &ItemData) -> bool {
+        let is_stash_diff = match target {
+            ItemData::Delta { diff, .. }
+            | ItemData::Hunk { diff, .. }
+            | ItemData::HunkLine { diff, .. } => diff.diff_type.is_stash(),
+            _ => false,
+        };
+
+        // Stash diffs are immutable snapshots, not live worktree or index changes.
+        match self {
+            Op::Apply => is_stash_diff || matches!(target, ItemData::Stash { .. }),
+            Op::Stage | Op::Unstage | Op::Discard | Op::Show => !is_stash_diff,
+            _ => true,
+        }
+    }
+
     pub fn implementation(self) -> Box<dyn OpTrait> {
         match self {
             Op::Quit => Box::new(editor::Quit),
@@ -187,6 +211,7 @@ impl Op {
             Op::Show => Box::new(show::Show),
             Op::Stage => Box::new(stage::Stage),
             Op::Unstage => Box::new(unstage::Unstage),
+            Op::Apply => Box::new(apply::Apply),
             Op::CopyHash => Box::new(copy_hash::CopyHash),
 
             Op::AddRemote => Box::new(remote::AddRemote),
@@ -227,4 +252,48 @@ pub(crate) fn confirm(app: &mut App, term: &mut Term, prompt: &'static str) -> R
 
 pub(crate) fn selected_rev(state: &App) -> Option<String> {
     state.selected_rev()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::rc::Rc;
+
+    use super::Op;
+    use crate::{
+        git::diff::{Diff, DiffType},
+        item_data::ItemData,
+    };
+
+    fn diff(diff_type: DiffType) -> ItemData {
+        ItemData::Delta {
+            diff: Rc::new(Diff {
+                text: String::new(),
+                diff_type,
+                file_diffs: vec![],
+                apply_prerequisite: None,
+            }),
+            file_i: 0,
+        }
+    }
+
+    #[test]
+    fn stash_diffs_exclude_live_worktree_actions() {
+        let stash_diff = diff(DiffType::Stash);
+        for op in [Op::Stage, Op::Unstage, Op::Discard, Op::Show] {
+            assert!(!op.is_available_for(&stash_diff));
+            assert!(op.action_for(&stash_diff).is_none());
+        }
+
+        assert!(Op::Apply.is_available_for(&stash_diff));
+        assert!(!Op::Apply.is_available_for(&diff(DiffType::WorkdirToIndex)));
+        assert!(
+            Op::Apply
+                .action_for(&ItemData::Stash {
+                    message: String::new(),
+                    stash_ref: "stash@{0}".into(),
+                    id: 0,
+                })
+                .is_some()
+        );
+    }
 }

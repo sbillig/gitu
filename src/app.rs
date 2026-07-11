@@ -323,7 +323,7 @@ impl App {
         let screen_ref = self.screen();
         let item_data = &screen_ref.get_selected_item().data;
 
-        if let Some(mut action) = op.clone().implementation().get_action(item_data) {
+        if let Some(mut action) = op.action_for(item_data) {
             let result = Rc::get_mut(&mut action).unwrap()(self, term);
             self.handle_result(result)?;
         }

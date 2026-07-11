@@ -29,14 +29,7 @@ pub(crate) fn layout_menu<'a>(layout: &mut UiTree<'a>, state: &'a State, width: 
         .partition(|keybind| keybind.op.clone().implementation().is_target_op());
     let target_binds: Vec<_> = target_binds
         .into_iter()
-        .filter(|keybind| {
-            keybind
-                .op
-                .clone()
-                .implementation()
-                .get_action(&item.data)
-                .is_some()
-        })
+        .filter(|keybind| keybind.op.action_for(&item.data).is_some())
         .collect();
     let (menu_binds, non_menu_binds): (Vec<_>, Vec<_>) = non_target_binds
         .into_iter()

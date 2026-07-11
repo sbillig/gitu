@@ -10,6 +10,12 @@
 //!
 
 use std::fs;
+#[cfg(unix)]
+use std::{
+    io::Write,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 #[macro_use]
 mod helpers;
@@ -36,6 +42,26 @@ use helpers::{TestContext, clone_and_commit, commit, keys, mouse_event, mouse_sc
 use stdext::function_name;
 
 use crate::tests::helpers::run_ignore_status;
+
+#[cfg(unix)]
+fn run_with_stdin(dir: &Path, command: &[&str], input: &[u8]) -> Vec<u8> {
+    let mut child = Command::new(command[0])
+        .args(&command[1..])
+        .current_dir(dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|_| panic!("failed to execute {command:?}"));
+    child.stdin.as_mut().unwrap().write_all(input).unwrap();
+
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "failed to execute {command:?}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output.stdout
+}
 
 #[test]
 fn help_menu() {
@@ -170,11 +196,120 @@ fn show() {
 fn show_stash() {
     let ctx = setup_clone!();
 
-    fs::write(ctx.dir.join("file1.txt"), "content").unwrap();
-    run(&ctx.dir, &["git", "add", "file1.txt"]);
-    // Unstaged changes to "file1.txt"
-    fs::write(ctx.dir.join("file1.txt"), "content\nmodified content").unwrap();
-    run(&ctx.dir, &["git", "stash", "save", "firststash"]);
+    // Unstaged changes should be shown as a diff against a tracked file.
+    commit(&ctx.dir, "unstaged.txt", "");
+
+    // Staged changes
+    fs::write(ctx.dir.join("staged.txt"), "staged\n").unwrap();
+    run(&ctx.dir, &["git", "add", "staged.txt"]);
+
+    // Unstaged changes
+    fs::write(ctx.dir.join("unstaged.txt"), "unstaged\n").unwrap();
+
+    // Untracked changes
+    fs::write(ctx.dir.join("untracked.txt"), "untracked\n").unwrap();
+
+    run(
+        &ctx.dir,
+        &[
+            "git",
+            "stash",
+            "push",
+            "--include-untracked",
+            "--message",
+            "firststash",
+        ],
+    );
+
+    snapshot!(ctx, "jj<enter>");
+}
+
+#[test]
+fn show_stash_without_untracked_files() {
+    let ctx = setup_clone!();
+    commit(&ctx.dir, "tracked.txt", "before\n");
+    fs::write(ctx.dir.join("tracked.txt"), "after\n").unwrap();
+    run(
+        &ctx.dir,
+        &[
+            "git",
+            "stash",
+            "push",
+            "--include-untracked",
+            "--message",
+            "empty-untracked",
+        ],
+    );
+
+    let repo = git2::Repository::open(&ctx.dir).unwrap();
+    let stash = repo
+        .revparse_single("stash@{0}")
+        .unwrap()
+        .peel_to_commit()
+        .unwrap();
+    assert_eq!(stash.parent_count(), 3);
+
+    snapshot!(ctx, "jj<enter>");
+}
+
+#[cfg(unix)]
+#[test]
+fn show_stash_with_non_utf8_untracked_file() {
+    let ctx = setup_clone!();
+    let base = run(&ctx.dir, &["git", "rev-parse", "HEAD"]);
+    let base = base.trim();
+    let base_tree = run(&ctx.dir, &["git", "rev-parse", "HEAD^{tree}"]);
+    let base_tree = base_tree.trim();
+    let blob = run_with_stdin(
+        &ctx.dir,
+        &["git", "hash-object", "-w", "--stdin"],
+        b"untracked\n",
+    );
+    let blob = String::from_utf8(blob).unwrap();
+
+    let mut tree_entry = format!("100644 blob {}\t", blob.trim()).into_bytes();
+    tree_entry.extend(b"nonutf8-\xff.txt\0");
+    let untracked_tree = run_with_stdin(&ctx.dir, &["git", "mktree", "-z"], &tree_entry);
+    let untracked_tree = String::from_utf8(untracked_tree).unwrap();
+    let untracked_tree = untracked_tree.trim();
+
+    let index = run(
+        &ctx.dir,
+        &["git", "commit-tree", base_tree, "-p", base, "-m", "index"],
+    );
+    let index = index.trim();
+    let untracked = run(
+        &ctx.dir,
+        &["git", "commit-tree", untracked_tree, "-m", "untracked"],
+    );
+    let untracked = untracked.trim();
+    let stash = run(
+        &ctx.dir,
+        &[
+            "git",
+            "commit-tree",
+            base_tree,
+            "-p",
+            base,
+            "-p",
+            index,
+            "-p",
+            untracked,
+            "-m",
+            "On main: non-utf8-untracked",
+        ],
+    );
+    run(
+        &ctx.dir,
+        &[
+            "git",
+            "stash",
+            "store",
+            "--message",
+            "non-utf8-untracked",
+            stash.trim(),
+        ],
+    );
 
     snapshot!(ctx, "jj<enter>");
 }

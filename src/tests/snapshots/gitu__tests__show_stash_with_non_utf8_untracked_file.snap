@@ -1,0 +1,25 @@
+---
+source: src/tests/mod.rs
+expression: ctx.redact_buffer()
+---
+ stash@{0}                                                                      |
+ Author: Author Name <author@email.com>                                         |
+ Date:   Fri, 16 Feb 2024 11:11:00 +0100                                        |
+                                                                                |
+     On main: non-utf8-untracked                                                |
+                                                                                |
+ Untracked files (1)                                                            |
+ added      nonutf8-�.txt                                                       |
+▌@@ -0,0 +1 @@                                                                  |
+▌+untracked                                                                     |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+styles_hash: d56c6ce96911e953

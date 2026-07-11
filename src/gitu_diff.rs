@@ -55,10 +55,10 @@ impl FilePath {
     pub fn fmt<'a>(&'a self, input: &'a str) -> Cow<'a, str> {
         if self.is_quoted {
             Cow::Owned(
-                String::from_utf8(
-                    smashquote::unescape_bytes(input[self.range.clone()].as_bytes()).unwrap(),
+                String::from_utf8_lossy(
+                    &smashquote::unescape_bytes(input[self.range.clone()].as_bytes()).unwrap(),
                 )
-                .unwrap(),
+                .into_owned(),
             )
         } else {
             Cow::Borrowed(&input[self.range.clone()])

@@ -22,8 +22,10 @@ impl OpTrait for Discard {
                 let patch = diff.format_file_patch(*file_i);
                 match diff.diff_type {
                     DiffType::WorkdirToIndex => reverse_worktree(patch),
-                    DiffType::IndexToTree => reverse_index_and_worktree(patch),
-                    DiffType::TreeToTree => reverse_index_and_worktree(patch),
+                    DiffType::IndexToTree | DiffType::TreeToTree => {
+                        reverse_index_and_worktree(patch)
+                    }
+                    DiffType::Stash => return None,
                 }
             }
             ItemData::Hunk {
@@ -34,8 +36,10 @@ impl OpTrait for Discard {
                 let patch = diff.format_hunk_patch(*file_i, *hunk_i);
                 match diff.diff_type {
                     DiffType::WorkdirToIndex => reverse_worktree(patch),
-                    DiffType::IndexToTree => reverse_index_and_worktree(patch),
-                    DiffType::TreeToTree => reverse_index_and_worktree(patch),
+                    DiffType::IndexToTree | DiffType::TreeToTree => {
+                        reverse_index_and_worktree(patch)
+                    }
+                    DiffType::Stash => return None,
                 }
             }
             ItemData::HunkLine {
@@ -54,8 +58,10 @@ impl OpTrait for Discard {
 
                 match diff.diff_type {
                     DiffType::WorkdirToIndex => reverse_worktree(patch),
-                    DiffType::IndexToTree => reverse_index_and_worktree(patch),
-                    DiffType::TreeToTree => reverse_index_and_worktree(patch),
+                    DiffType::IndexToTree | DiffType::TreeToTree => {
+                        reverse_index_and_worktree(patch)
+                    }
+                    DiffType::Stash => return None,
                 }
             }
             _ => return None,

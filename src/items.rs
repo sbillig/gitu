@@ -90,8 +90,8 @@ impl Item {
                     match file_diff.header.status {
                         Status::Renamed | Status::Copied => format!(
                             "{} -> {}",
-                            &file_diff.header.old_file.fmt(&diff.text),
-                            &file_diff.header.new_file.fmt(&diff.text)
+                            file_diff.header.old_file.fmt(&diff.text),
+                            file_diff.header.new_file.fmt(&diff.text)
                         ),
                         Status::Deleted => file_diff.header.old_file.fmt(&diff.text).to_string(),
                         Status::Added => file_diff.header.new_file.fmt(&diff.text).to_string(),
@@ -152,6 +152,10 @@ impl Item {
                     SectionHeader::Stashes => "Stashes".to_string(),
                     SectionHeader::RecentCommits => "Recent commits".to_string(),
                     SectionHeader::Commit(oid) => format!("commit {oid}"),
+                    SectionHeader::StashRef(stash_ref) => stash_ref,
+                    SectionHeader::StagedChanges(count) => format!("Staged changes ({count})"),
+                    SectionHeader::UnstagedChanges(count) => format!("Unstaged changes ({count})"),
+                    SectionHeader::UntrackedFiles(count) => format!("Untracked files ({count})"),
                 };
 
                 Line::styled(content, &config.style.section_header)

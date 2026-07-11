@@ -1,0 +1,25 @@
+---
+source: src/tests/mod.rs
+expression: ctx.redact_buffer()
+---
+ stash@{0}                                                                      |
+ Author: Author Name <author@email.com>                                         |
+ Date:   Fri, 16 Feb 2024 11:11:00 +0100                                        |
+                                                                                |
+     On main: empty-untracked                                                   |
+                                                                                |
+ Unstaged changes (1)                                                           |
+ modified   tracked.txt                                                         |
+▌@@ -1 +1 @@                                                                    |
+▌-before                                                                        |
+▌+after                                                                         |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+                                                                                |
+styles_hash: a01eadb214c67358

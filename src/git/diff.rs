@@ -1,18 +1,26 @@
-use crate::gitu_diff::FileDiff;
-use std::ops::Range;
+use crate::gitu_diff::{FileDiff, FilePath};
+use std::{ops::Range, rc::Rc};
 
 #[derive(Debug, Clone)]
 pub(crate) struct Diff {
     pub text: String,
     pub diff_type: DiffType,
     pub file_diffs: Vec<FileDiff>,
+    pub apply_prerequisite: Option<Rc<Diff>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DiffType {
     WorkdirToIndex, // i.e. Unstaged
     IndexToTree,    // i.e. Staged
     TreeToTree,
+    Stash,
+}
+
+impl DiffType {
+    pub(crate) fn is_stash(self) -> bool {
+        matches!(self, Self::Stash)
+    }
 }
 
 #[derive(Debug)]
@@ -41,11 +49,19 @@ impl Diff {
         patch
     }
 
+    pub(crate) fn format_apply_file_patch(&self, file_i: usize) -> String {
+        self.with_prerequisite(file_i, self.format_file_patch(file_i))
+    }
+
     pub(crate) fn format_hunk_patch(&self, file_i: usize, hunk_i: usize) -> String {
         let mut patch = String::new();
         patch.push_str(self.file_diff_header(file_i));
         patch.push_str(self.hunk(file_i, hunk_i));
         patch
+    }
+
+    pub(crate) fn format_apply_hunk_patch(&self, file_i: usize, hunk_i: usize) -> String {
+        self.with_prerequisite(file_i, self.format_hunk_patch(file_i, hunk_i))
     }
 
     pub(crate) fn file_diff_header(&self, file_i: usize) -> &str {
@@ -104,6 +120,18 @@ impl Diff {
         format!("{file_header}{hunk_header}{modified_content}")
     }
 
+    pub(crate) fn format_apply_line_patch(
+        &self,
+        file_i: usize,
+        hunk_i: usize,
+        line_range: Range<usize>,
+    ) -> String {
+        self.with_prerequisite(
+            file_i,
+            self.format_line_patch(file_i, hunk_i, line_range, PatchMode::Normal),
+        )
+    }
+
     pub(crate) fn file_line_of_first_diff(&self, file_i: usize, hunk_i: usize) -> usize {
         let hunk = &self.file_diffs[file_i].hunks[hunk_i];
         let line = hunk.header.new_line_start as usize;
@@ -116,6 +144,46 @@ impl Diff {
         }
         line
     }
+
+    fn with_prerequisite(&self, file_i: usize, patch: String) -> String {
+        format!(
+            "{}{}",
+            self.prerequisite_file_patch(file_i).unwrap_or_default(),
+            patch
+        )
+    }
+
+    fn prerequisite_file_patch(&self, file_i: usize) -> Option<String> {
+        let prerequisite = self.apply_prerequisite.as_ref()?;
+        let paths = self.file_paths(file_i);
+        let prerequisite_file_i = prerequisite.file_diffs.iter().position(|file_diff| {
+            [
+                normalized_file_path(&file_diff.header.old_file, &prerequisite.text),
+                normalized_file_path(&file_diff.header.new_file, &prerequisite.text),
+            ]
+            .into_iter()
+            .flatten()
+            .any(|path| paths.contains(&path))
+        })?;
+
+        Some(prerequisite.format_file_patch(prerequisite_file_i))
+    }
+
+    fn file_paths(&self, file_i: usize) -> Vec<String> {
+        let header = &self.file_diffs[file_i].header;
+        [
+            normalized_file_path(&header.old_file, &self.text),
+            normalized_file_path(&header.new_file, &self.text),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
+}
+
+fn normalized_file_path(file: &FilePath, text: &str) -> Option<String> {
+    let path = &text[file.range.clone()];
+    (path != "/dev/null").then(|| path.to_string())
 }
 
 fn mask_hunk_content(content: &str, keep: char, mask: char) -> String {

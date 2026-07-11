@@ -9,6 +9,13 @@ pub(crate) struct Diff {
     pub apply_prerequisite: Option<Rc<Diff>>,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct DiffStats {
+    pub files_changed: usize,
+    pub additions: usize,
+    pub deletions: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DiffType {
     WorkdirToIndex, // i.e. Unstaged
@@ -30,6 +37,31 @@ pub(crate) enum PatchMode {
 }
 
 impl Diff {
+    pub(crate) fn stats(&self) -> DiffStats {
+        let mut stats = DiffStats {
+            files_changed: self.file_diffs.len(),
+            ..Default::default()
+        };
+
+        for change in self
+            .file_diffs
+            .iter()
+            .flat_map(|file_diff| &file_diff.hunks)
+            .flat_map(|hunk| &hunk.content.changes)
+        {
+            stats.additions += self.text[change.new.clone()]
+                .lines()
+                .filter(|line| line.starts_with('+'))
+                .count();
+            stats.deletions += self.text[change.old.clone()]
+                .lines()
+                .filter(|line| line.starts_with('-'))
+                .count();
+        }
+
+        stats
+    }
+
     pub(crate) fn mask_old_hunk(&self, file_i: usize, hunk_i: usize) -> String {
         let content = &self.text[self.file_diffs[file_i].hunks[hunk_i].content.range.clone()];
         mask_hunk_content(content, '-', '+')
@@ -211,4 +243,30 @@ fn mask_hunk_content(content: &str, keep: char, mask: char) -> String {
     });
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Diff, DiffStats, DiffType};
+    use crate::gitu_diff::Parser;
+
+    #[test]
+    fn stats_count_only_changed_text_lines() {
+        let text = "diff --git a/file b/file\nindex 1234567..7654321 100644\n--- a/file\n+++ b/file\n@@ -1,2 +1,3 @@\n one\n-two\n+three\n+four\n@@ -10 +11 @@\n-old\n\\ No newline at end of file\n+new\n\\ No newline at end of file\ndiff --git a/script.sh b/script.sh\nold mode 100644\nnew mode 100755\ndiff --git a/image.png b/image.png\nindex 1234567..7654321 100644\nBinary files a/image.png and b/image.png differ\n";
+        let diff = Diff {
+            text: text.to_string(),
+            diff_type: DiffType::TreeToTree,
+            file_diffs: Parser::new(text).parse_diff().unwrap(),
+            apply_prerequisite: None,
+        };
+
+        assert_eq!(
+            diff.stats(),
+            DiffStats {
+                files_changed: 3,
+                additions: 3,
+                deletions: 2,
+            }
+        );
+    }
 }

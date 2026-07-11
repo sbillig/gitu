@@ -1,6 +1,6 @@
 use std::{ops::Range, path::PathBuf, rc::Rc};
 
-use crate::git::diff::Diff;
+use crate::git::diff::{Diff, DiffStats};
 
 #[derive(Clone, Debug)]
 pub(crate) enum ItemData {
@@ -40,6 +40,7 @@ pub(crate) enum ItemData {
         stash_ref: String,
         id: usize,
     },
+    DiffStats(DiffStats),
     Header(SectionHeader),
     BranchStatus(String, u32, u32),
     Error(String),

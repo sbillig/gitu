@@ -25,6 +25,7 @@ pub(crate) fn create(
             let commit = git::show_summary(repo.as_ref(), &reference)?;
             let show = git::show(repo.as_ref(), &reference)?;
             let details = commit.details.lines();
+            let stats = show.stats();
 
             Ok(iter::once(Item {
                 id: hash(["commit_section", &commit.hash]),
@@ -39,7 +40,17 @@ pub(crate) fn create(
                 data: ItemData::Raw(line.to_string()),
                 ..Default::default()
             }))
-            .chain([items::blank_line()])
+            .chain([
+                items::blank_line(),
+                Item {
+                    id: hash(["commit_stats", &commit.hash]),
+                    depth: 1,
+                    unselectable: true,
+                    data: ItemData::DiffStats(stats),
+                    ..Default::default()
+                },
+                items::blank_line(),
+            ])
             .chain(items::create_diff_items(&Rc::new(show), 0, false))
             .collect())
         }),

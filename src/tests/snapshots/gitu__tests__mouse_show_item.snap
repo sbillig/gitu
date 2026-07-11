@@ -10,6 +10,8 @@ expression: ctx.redact_buffer()
                                                                                 |
      Commit body goes here                                                      |
                                                                                 |
+ 1 file changed, +2 -0                                                          |
+                                                                                |
  added      testfile                                                            |
 ▌@@ -0,0 +1,2 @@                                                                |
 ▌+testing                                                                       |
@@ -20,6 +22,4 @@ expression: ctx.redact_buffer()
                                                                                 |
                                                                                 |
                                                                                 |
-                                                                                |
-                                                                                |
-styles_hash: aa867385650c4035
+styles_hash: 638b52a44926c6cd

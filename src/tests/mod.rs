@@ -188,7 +188,8 @@ fn log() {
 #[test]
 fn show() {
     let ctx = setup_clone!();
-    commit(&ctx.dir, "firstfile", "This should be visible\n");
+    commit(&ctx.dir, "firstfile", "one\ntwo\nthree\nfour\n");
+    commit(&ctx.dir, "firstfile", "one\nchanged\nfour\nfive\nsix\n");
     snapshot!(ctx, "ll<enter>");
 }
 

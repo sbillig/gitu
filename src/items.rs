@@ -139,6 +139,22 @@ impl Item {
                 Span::styled(format!("stash@{id}"), &config.style.hash),
                 Span::raw(format!(" {message}")),
             ]),
+            ItemData::DiffStats(stats) => Line::from(vec![
+                Span::raw(format!(
+                    "{} file{} changed, ",
+                    stats.files_changed,
+                    if stats.files_changed == 1 { "" } else { "s" }
+                )),
+                Span::styled(
+                    format!("+{}", stats.additions),
+                    &config.style.diff_highlight.tag_new,
+                ),
+                Span::raw(" "),
+                Span::styled(
+                    format!("-{}", stats.deletions),
+                    &config.style.diff_highlight.tag_old,
+                ),
+            ]),
             ItemData::Header(header) => {
                 let content = match header {
                     SectionHeader::Remote(remote) => format!("Remote {remote}"),
